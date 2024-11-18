@@ -1,7 +1,8 @@
 import pandas as pd
 
 # Load JSON dataset
-data = pd.read_json("Sports_and_Outdoors_5.json", lines=True, chunksize=10000)  
+small_data = pd.read_json("Sports_and_Outdoors_5.json", lines=True, chunksize=10000)  
 
-# View first few rows
-print(data.head())
+data_sample = next(small_data)
+
+print(data_sample.head())
