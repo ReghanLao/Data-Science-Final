@@ -1,7 +1,7 @@
 import pandas as pd
 
-# Load the JSON dataset
-data = pd.read_json("Sports_and_Outdoors_5.json", lines=True)  # Add `lines=True` if it's line-delimited JSON
+# Load JSON dataset
+data = pd.read_json("Sports_and_Outdoors_5.json", lines=True, chunksize=10000)  
 
-# View the first few rows
+# View first few rows
 print(data.head())
