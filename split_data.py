@@ -8,7 +8,7 @@ def split_data(data, test_size=0.2):
 
   for user_id, group in groups:
     split_index = int(len(group) * (1-test_size))
-    group = group.sample(frac=1)
+    group = group.sample(frac=1) #randomize order of ratings
     train.append(group.iloc[:split_index])
     test.append(group.iloc[split_data:])
 
