@@ -18,4 +18,5 @@ print(data.isnull().sum())
 
 cleaned_data = clean_data(data)
 
-cleaned_data.to_csv("cleaned_data.csv", index=False)
+print("\nCleaned Dataset Info:")
+print(cleaned_data.info())
