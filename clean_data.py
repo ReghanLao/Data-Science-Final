@@ -7,7 +7,7 @@ def clean_data(data):
     data[column] = data[column].fillna(pd.NA)
   
   if 'style' in data.columns:
-        data['style'] = data['style'].apply(lambda x: str(x) if isinstance(x, dict) else x)
+    data['style'] = data['style'].apply(lambda x: str(x) if isinstance(x, dict) else x)
 
   # Remove duplicate rows if they exist
   data = data.drop_duplicates()
