@@ -1,8 +1,16 @@
 import pandas as pd
 
-# Load JSON dataset
-small_data = pd.read_json("Sports_and_Outdoors_5.json", lines=True, chunksize=10000)  
+# Load dataset
+data = pd.read_json("Sports_and_Outdoors_5.json", lines=True)  
 
-data_sample = next(small_data)
+# Display the first few rows 
+print(data.head())
 
-print(data_sample.head())
+# Display basic information about the dataset
+print(data.info()) 
+
+# View a summary of statistical values
+print(data.describe())  
+
+# Check for missing values
+print(data.isnull().sum())
