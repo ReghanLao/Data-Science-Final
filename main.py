@@ -23,7 +23,7 @@ start_time = time.time()
 
 chunks = []
 chunk_size = 100000
-for chunk in pd.read_json("Sports_and_Outdoors_5", lines=True, chunksize=chunk_size):
+for chunk in pd.read_json("Sports_and_Outdoors_5.json", lines=True, chunksize=chunk_size):
     chunks.append(chunk[['reviewerID', 'asin', 'overall']])
 df = pd.concat(chunks)
 del chunks
