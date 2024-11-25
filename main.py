@@ -1,21 +1,14 @@
-<<<<<<< Updated upstream
-from load_data import load_data
-from clean_data import clean_data
-from rating_prediction import create_user_item_matrix_sparse, compute_similarity, predict_ratings, evaluate_predictions
-from split_data import split_data
-=======
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-import gc
-from tqdm import tqdm
+import gc  # Garbage collector
+from tqdm import tqdm  # For progress bars
 import time
 import warnings
 warnings.filterwarnings('ignore')
->>>>>>> Stashed changes
 
 def print_time_estimate(start_time):
     """Print elapsed time in a human readable format"""
@@ -25,12 +18,13 @@ def print_time_estimate(start_time):
 print("Starting recommendation system...")
 total_start = time.time()
 
+# Load data with chunks to handle memory better
 print("Loading data...")
 start_time = time.time()
 
 chunks = []
-chunk_size = 100000
-for chunk in pd.read_json("path_to_your_amazon_dataset.json", lines=True, chunksize=chunk_size):
+chunk_size = 100000  # Adjust based on your available RAM
+for chunk in pd.read_json("Sports_and_Outdoors_5", lines=True, chunksize=chunk_size):
     chunks.append(chunk[['reviewerID', 'asin', 'overall']])
 df = pd.concat(chunks)
 del chunks
@@ -39,15 +33,13 @@ gc.collect()
 print(f"Data loaded. {len(df)} records found.")
 print_time_estimate(start_time)
 
+# Basic preprocessing
 print("\nPreprocessing data...")
 start_time = time.time()
 
-<<<<<<< Updated upstream
-print(f"Mean Absolute Error (MAE): {mae}")
-print(f"Root Mean Squared Error (RMSE): {rmse}")
-=======
 df.columns = ['user_id', 'item_id', 'rating']
 
+# Create mappings using numerical index
 print("Creating user/item mappings...")
 user_mapping = {user: idx for idx, user in enumerate(df['user_id'].unique())}
 item_mapping = {item: idx for idx, item in enumerate(df['item_id'].unique())}
@@ -64,6 +56,7 @@ print(f"Number of ratings: {len(df)}")
 print(f"Sparsity: {(1 - len(df)/(num_users*num_items))*100:.2f}%")
 print_time_estimate(start_time)
 
+# Memory efficient train/test split
 print("\nSplitting data...")
 start_time = time.time()
 
@@ -82,6 +75,7 @@ print(f"Training set size: {len(train_df)}")
 print(f"Test set size: {len(test_df)}")
 print_time_estimate(start_time)
 
+# Create sparse matrix
 print("\nCreating sparse matrix...")
 start_time = time.time()
 
@@ -91,6 +85,7 @@ train_sparse = csr_matrix(
 )
 print_time_estimate(start_time)
 
+# Perform SVD
 print("\nPerforming SVD...")
 start_time = time.time()
 
@@ -99,6 +94,7 @@ svd = TruncatedSVD(n_components=n_components, random_state=42)
 user_factors = svd.fit_transform(train_sparse)
 item_factors = svd.components_
 
+# Free memory
 del train_sparse
 gc.collect()
 
@@ -115,13 +111,16 @@ def evaluate_predictions_batch(test_df, user_factors, item_factors, batch_size=1
         end_idx = min(start_idx + batch_size, len(test_df))
         batch_df = test_df.iloc[start_idx:end_idx]
         
+        # Get predictions for batch
         batch_predictions = np.sum(
             user_factors[batch_df['user_idx']] * item_factors[:, batch_df['item_idx']].T,
             axis=1
         )
         
+        # Clip predictions
         batch_predictions = np.clip(batch_predictions, 1, 5)
         
+        # Update metrics
         batch_mae = np.sum(np.abs(batch_predictions - batch_df['rating']))
         batch_mse = np.sum(np.square(batch_predictions - batch_df['rating']))
         
@@ -134,6 +133,7 @@ def evaluate_predictions_batch(test_df, user_factors, item_factors, batch_size=1
     
     return mae, rmse
 
+# Evaluate predictions
 print("\nEvaluating rating predictions...")
 start_time = time.time()
 mae, rmse = evaluate_predictions_batch(test_df, user_factors, item_factors)
@@ -151,24 +151,29 @@ def generate_recommendations_batch(test_df, user_factors, item_factors, train_df
         end_idx = min(start_idx + batch_size, len(test_users))
         batch_users = test_users[start_idx:end_idx]
         
+        # Generate predictions for batch
         batch_predictions = np.dot(user_factors[batch_users], item_factors)
         
         for i, user_idx in enumerate(batch_users):
+            # Mask out items the user has already rated
             rated_items = set(train_df[train_df['user_idx'] == user_idx]['item_idx'])
             user_predictions = batch_predictions[i]
             mask = np.ones(len(user_predictions), dtype=bool)
             mask[list(rated_items)] = False
             
+            # Get top N items
             top_items = np.argsort(user_predictions[mask])[-n:][::-1]
             recommendations[user_idx] = top_items
     
     return recommendations
 
+# Generate recommendations
 print("\nGenerating recommendations...")
 start_time = time.time()
 recommendations = generate_recommendations_batch(test_df, user_factors, item_factors, train_df)
 print_time_estimate(start_time)
 
+# Calculate metrics
 print("\nCalculating recommendation metrics...")
 start_time = time.time()
 
@@ -189,11 +194,13 @@ for user_idx in tqdm(test_df['user_idx'].unique(), desc="Calculating metrics"):
         
     recommended = set(recommendations[user_idx])
     
+    # Calculate basic metrics
     hits = len(ground_truth.intersection(recommended))
     precision = hits / len(recommended)
     recall = hits / len(ground_truth)
     f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
     
+    # Calculate NDCG
     dcg = sum([1 / np.log2(i + 2) for i, item in 
                enumerate(recommendations[user_idx]) if item in ground_truth])
     idcg = sum([1 / np.log2(i + 2) for i in range(min(len(ground_truth), 10))])
@@ -204,6 +211,7 @@ for user_idx in tqdm(test_df['user_idx'].unique(), desc="Calculating metrics"):
     metrics['f1'].append(f1)
     metrics['ndcg'].append(ndcg)
 
+# Print final metrics
 print("\nFinal Metrics:")
 print(f"Precision@10: {np.mean(metrics['precision']):.4f}")
 print(f"Recall@10: {np.mean(metrics['recall']):.4f}")
@@ -212,4 +220,3 @@ print(f"NDCG@10: {np.mean(metrics['ndcg']):.4f}")
 
 print("\nTotal runtime:")
 print_time_estimate(total_start)
->>>>>>> Stashed changes
