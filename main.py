@@ -2,6 +2,7 @@ from load_data import load_data
 from clean_data import clean_data
 from rating_prediction import create_user_item_matrix_sparse, compute_similarity, predict_ratings, evaluate_predictions
 from split_data import split_data
+from top_N_Recs import recommend_top_n, evaluate_recommendations
 
 # Load and clean data
 data = load_data("Sports_and_Outdoors_5.json") 
@@ -22,3 +23,6 @@ mae, rmse = evaluate_predictions(predictions, true_ratings)
 
 print(f"Mean Absolute Error (MAE): {mae}")
 print(f"Root Mean Squared Error (RMSE): {rmse}")
+
+metrics = evaluate_recommendations(test_data, similarity_matrix, user_item_matrix_sparse, user_map, item_map)
+print(f"Top-N Recommendation Metrics: {metrics}")
