@@ -17,8 +17,8 @@ def compute_embeddings(texts):
     return model.encode(texts).tolist()
 
 
-def cosine_similarity(a, b):
-    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+def weighted_cosine_similarity(a, b, weight):
+    return weight * np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 
 def mapper():
@@ -71,9 +71,9 @@ def mapper():
             if item not in item_embeddings:
                 continue
             avg_similarity = np.mean(
-                [cosine_similarity(item_embeddings[item], review['embedding']) for review in train_data])
-            recommendations.append((item, avg_similarity))
-
+                [weighted_cosine_similarity(item_embeddings[item], review['embedding'], review['overall']) for review in 
+                 train_data])
+            
         recommendations.sort(key=lambda x: -x[1])  # Sort by similarity descending
         top_10_recommendations = [item for item, _ in recommendations[:10]]
 
