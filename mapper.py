@@ -5,6 +5,7 @@ import random
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.models import StaticEmbedding
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Initialize the embedding model
 static_embedding = StaticEmbedding.from_model2vec("minishlab/potion-base-8M")
@@ -12,96 +13,88 @@ model = SentenceTransformer(modules=[static_embedding])
 
 
 def mapper():
-    user_data, item_reviews, all_items = {}, {}, set()
-    global_true_ratings = {}
+    train_data = []
+    test_data = []
+    user_item_reviews = {}
 
-    # Read input data
+    # Read input data and separate into train and test sets
     for line in sys.stdin:
         try:
-            data = json.loads(line)  # Parse JSON input
+            data = json.loads(line)
             asin = data.get('asin')
-            review_text = data.get('reviewText', '').strip()
+            review_text = data.get('reviewText')
             reviewerID = data.get('reviewerID')
             overall = data.get('overall')
 
-            # Only proceed if all necessary fields are present
             if asin and review_text and reviewerID and overall is not None:
-                if reviewerID not in user_data:
-                    user_data[reviewerID] = {'train': [], 'test': []}
-
-                # Randomly assign data to train/test sets (80/20 split)
-                data_type = 'train' if random.random() < 0.8 else 'test'
                 review_embedding = model.encode(review_text).tolist()
-                review_info = {'asin': asin, 'embedding': np.array(review_embedding), 'overall': overall}
+                review_info = {
+                    'asin': asin,
+                    'embedding': review_embedding,
+                    'overall': overall,
+                    'reviewerID': reviewerID
+                }
 
-                user_data[reviewerID][data_type].append(review_info)
-
-                if data_type == 'train':
-                    item_reviews.setdefault(asin, []).append(review_info)
+                # Assign to train (80%) or test (20%)
+                if random.random() < 0.8:
+                    train_data.append(review_info)
+                    if reviewerID not in user_item_reviews:
+                        user_item_reviews[reviewerID] = {}
+                    user_item_reviews[reviewerID][asin] = review_info
                 else:
-                    # Collect true ratings globally from test data
-                    if asin not in global_true_ratings:
-                        global_true_ratings[asin] = []
-                    global_true_ratings[asin].append(overall)
-
-                all_items.add(asin)
+                    test_data.append(review_info)
 
         except (json.JSONDecodeError, TypeError, ValueError):
             continue
 
-    # Compute item vectors using weighted average of review embeddings
+    # Create user vectors from training data
+    user_vectors = {}
     item_vectors = {}
-    for item, reviews in item_reviews.items():
-        item_weights = np.array([review['overall'] for review in reviews])
-        if np.sum(item_weights) > 0:
-            item_vectors[item] = sum(
-                review['embedding'] * weight for review, weight in zip(reviews, item_weights)) / np.sum(item_weights)
 
-    # Populate test set data correctly during the mapper phase
-    for user, data in user_data.items():
-        train_data = data['train']
+    for review in train_data:
+        reviewerID = review['reviewerID']
+        embedding = np.array(review['embedding'])
 
-        # Skip if there is no training data
-        if not train_data:
-            continue
+        if reviewerID not in user_vectors:
+            user_vectors[reviewerID] = []
 
-        train_weights = np.array([review['overall'] for review in train_data])
-        if np.sum(train_weights) == 0:
-            continue
+        user_vectors[reviewerID].append(embedding)
 
-        user_vector = sum(review['embedding'] * weight for review, weight in zip(train_data, train_weights)) / np.sum(
-            train_weights)
+        # Store item vectors
+        item_vectors[review['asin']] = embedding
 
-        predicted_ratings = []
+    # Average the embeddings to create user vectors
+    for user, embeddings in user_vectors.items():
+        user_vectors[user] = np.mean(embeddings, axis=0)
 
-        # Generate recommendations for all items
-        for item in all_items:
-            if item in item_vectors:
-                item_vector_norm = np.linalg.norm(item_vectors[item]) + 1e-9
-                user_vector_norm = np.linalg.norm(user_vector) + 1e-9
+    # Prepare output dictionary for predictions
+    output_dict = {}
 
-                # Calculate cosine similarity between user vector and item vector
-                similarity = np.dot(item_vectors[item], user_vector) / (item_vector_norm * user_vector_norm)
+    # Predict ratings for test data
+    for review in test_data:
+        reviewerID = review['reviewerID']
+        asin = review['asin']
 
-                predicted_rating = sum(similarity * review['overall'] for review in item_reviews.get(item, [])) / (
-                        sum(abs(similarity) for review in item_reviews.get(item, [])) + 1e-9)
+        # Only predict if the item is not in user's training data
+        if reviewerID in user_item_reviews and asin not in user_item_reviews[reviewerID]:
+            if reviewerID in user_vectors and asin in item_vectors:
+                user_vector = user_vectors[reviewerID].reshape(1, -1)
+                item_vector = item_vectors[asin].reshape(1, -1)
 
-                predicted_ratings.append([item, predicted_rating])
+                # Calculate similarity (cosine similarity)
+                similarity_score = cosine_similarity(user_vector, item_vector)[0][0]
 
-        # Sort recommendations by predicted rating
-        predicted_ratings.sort(key=lambda x: -x[1])
+                # Scale similarity score to a rating scale (e.g., 1-5)
+                predicted_rating = round(1 + 4 * similarity_score)  # Assuming ratings are from 1 to 5
 
-        # Collect true ratings only for items that have been predicted
-        true_ratings_dict = {item: global_true_ratings[item] for item, _ in predicted_ratings if
-                             item in global_true_ratings}
+                output_dict.setdefault(reviewerID, []).append({
+                    'asin': asin,
+                    'predicted_rating': predicted_rating,
+                    'true_rating': review['overall']
+                })
 
-        # Output recommendations and true ratings for evaluation
-        output = {
-            'ratings': predicted_ratings,
-            'true_ratings': true_ratings_dict  # Only include true ratings that correspond to predicted items globally
-        }
-
-        print(f"{user}\t{json.dumps(output)}")
+    # Print output as JSON
+    print(json.dumps(output_dict))
 
 
 if __name__ == "__main__":
