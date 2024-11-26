@@ -85,7 +85,7 @@ def mapper():
                 similarity_score = cosine_similarity(user_vector, item_vector)[0][0]
 
                 # Scale similarity score to a rating scale (e.g., 1-5)
-                predicted_rating = round(1 + 4 * similarity_score)  # Assuming ratings are from 1 to 5
+                predicted_rating = 1 + 4 * similarity_score  # Assuming ratings are from 1 to 5
 
                 output_dict.setdefault(reviewerID, []).append({
                     'asin': asin,
